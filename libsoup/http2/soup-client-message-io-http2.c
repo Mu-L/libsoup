@@ -830,10 +830,15 @@ on_frame_send_callback (nghttp2_session     *session,
 
         switch (frame->hd.type) {
         case NGHTTP2_HEADERS:
-                g_assert (data);
                 h2_debug (io, data, "[SEND] [HEADERS] category=%s finished=%d",
                           soup_http2_headers_category_to_string (frame->headers.cat),
                           (frame->hd.flags & NGHTTP2_FLAG_END_HEADERS) ? 1 : 0);
+
+                if (!data) {
+                        /* This can happen in case of cancellation */
+                        io->in_callback--;
+                        return 0;
+                }
 
                 if (data->metrics)
                         data->metrics->request_header_bytes_sent += frame->hd.length + FRAME_HEADER_SIZE;
@@ -847,7 +852,12 @@ on_frame_send_callback (nghttp2_session     *session,
                 }
                 break;
         case NGHTTP2_DATA:
-                g_assert (data);
+                if (!data) {
+                        /* This can happen in case of cancellation */
+                        io->in_callback--;
+                        return 0;
+                }
+
                 if (data->state < STATE_WRITE_DATA)
                         advance_state_from (data, STATE_WRITE_HEADERS, STATE_WRITE_DATA);
 
